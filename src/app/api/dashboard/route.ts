@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { tenantClause } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ function auth(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // ✅ فلتر المستأجر المطور لدعم السجلات العامة والمستوردة

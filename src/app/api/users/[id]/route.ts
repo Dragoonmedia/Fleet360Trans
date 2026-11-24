@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { ROLE_POWER, isGlobalUser, tenantOf } from "@/lib/guard";
 import bcrypt from "bcryptjs";
 
@@ -27,7 +27,7 @@ function normalizePermissions(input: unknown, fallback: string): string {
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> | { id: string } }) {
   try {
-    const caller = auth(req);
+    const caller = await revalidateSession(auth(req));
     if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const params = await context.params;
@@ -108,7 +108,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> | { id: string } }) {
   try {
-    const caller = auth(req);
+    const caller = await revalidateSession(auth(req));
     if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const params = await context.params;

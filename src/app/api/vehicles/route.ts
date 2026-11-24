@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
 import { sql } from "drizzle-orm";
 
@@ -52,7 +52,7 @@ async function ensureColumns() {
 // ── GET: جلب السيارات واسترجاع رقم الساب والشاسيه والملاحظات ──
 export async function GET(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     await ensureColumns();
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
 // ── POST: إضافة سيارة جديدة أو تحديث الساب لسيارة قائمة (Upsert ذكي) ──
 export async function POST(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     await ensureColumns();
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
 // ── PUT: تعديل بيانات السيارة ورقم الساب مباشرة بالـ ID ──
 export async function PUT(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     await ensureColumns();

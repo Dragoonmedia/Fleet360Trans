@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { vehicleParts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { ROLE_POWER, powerOf, isGlobalUser, tenantOf } from "@/lib/guard";
 
 function auth(req: NextRequest) {
@@ -12,7 +12,7 @@ function auth(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = auth(req);
+  const user = await revalidateSession(auth(req));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   const partId = parseInt(id);
@@ -37,7 +37,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const user = auth(req);
+  const user = await revalidateSession(auth(req));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   // كان الشرط user.role !== "admin" فبيمنع owner و super_admin. دلوقتي: admin فما فوق.
   if (powerOf(user.role) < ROLE_POWER.admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });

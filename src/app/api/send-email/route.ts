@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { powerOf, ROLE_POWER } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ const ALLOWED_ATTACHMENT = /^data:(image\/(png|jpeg|webp)|application\/pdf);base
 
 export async function POST(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // 🔒 الإرسال للمديرين فما فوق فقط (كان متاح لأي مستخدم مسجل)

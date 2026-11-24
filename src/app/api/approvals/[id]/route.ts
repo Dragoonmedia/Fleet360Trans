@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,7 @@ const MODULE_LINKS: Record<string, string> = {
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> | { id: string } }) {
   try {
-    const caller = auth(req);
+    const caller = await revalidateSession(auth(req));
     if (!caller) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const callerPower = ROLE_POWER[caller.role] ?? 1;

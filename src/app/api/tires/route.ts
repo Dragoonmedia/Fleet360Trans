@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ function auth(req: NextRequest) {
 // ── GET: جلب سجلات الكاوتش ──
 export async function GET(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const isSuperAdmin = user.role === "super_admin";
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 // ── POST: إضافة سجل كاوتش جديد ──
 export async function POST(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const b = await req.json().catch(() => ({}));
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 // ── DELETE: حذف أمر الكاوتش نهائياً أو نقله للمحذوفات ──
 export async function DELETE(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);

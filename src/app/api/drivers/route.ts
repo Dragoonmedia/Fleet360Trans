@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { tenantClause } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ function auth(req: NextRequest) {
 // ── GET: جلب قائمة الفنيين والسائقين والمهندسين ──
 export async function GET(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const tenantId = user.tenantId || "master";
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 // ── POST: إضافة فرد جديد (سائق / فني / مهندس) ──
 export async function POST(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const b = await req.json().catch(() => ({}));
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
 // ── PUT: تعديل بيانات الفرد ──
 export async function PUT(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const b = await req.json().catch(() => ({}));
@@ -126,7 +126,7 @@ export async function PUT(req: NextRequest) {
 // ── DELETE: حذف الفرد ──
 export async function DELETE(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(req.url);

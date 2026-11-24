@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { vehiclePartsHistory } from "@/db/schema";
 import { eq, and, gte, lte, ilike, sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { isGlobalUser, tenantOf } from "@/lib/guard";
 
 function auth(req: NextRequest) {
@@ -12,7 +12,7 @@ function auth(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const user = auth(req);
+  const user = await revalidateSession(auth(req));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = auth(req);
+  const user = await revalidateSession(auth(req));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const b = await req.json().catch(() => ({}));
   // 🔒 قائمة حقول مسموحة + الـ tenant بيتحدد من التوكن مش من الـ body

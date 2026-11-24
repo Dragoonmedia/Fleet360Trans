@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { fuelRecords, vehicles } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export async function PUT(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id: idStr } = await ctx.params;
@@ -85,7 +85,7 @@ export async function DELETE(
   ctx: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await ctx.params;
     await db.delete(fuelRecords).where(and(eq(fuelRecords.id, Number(id)), isGlobalUser(user) ? undefined : sql`COALESCE(${fuelRecords.tenantId}, 'master') = ${tenantOf(user)}`));

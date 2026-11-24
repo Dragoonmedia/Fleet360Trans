@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { fuelRecords, vehicles } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { tenantOf } from "@/lib/guard";
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ function auth(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const raw = await db.execute(sql`SELECT * FROM fuel_records WHERE tenant_id = ${tenantOf(user)} AND is_deleted = 0 ORDER BY id DESC`);
     return NextResponse.json((raw as any).rows || raw || []);
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));

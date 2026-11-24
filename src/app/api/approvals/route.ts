@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ const ROLE_POWER: Record<string, number> = { owner: 4, super_admin: 3, admin: 2,
 
 export async function GET(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // المستخدم العادي لا يملك صلاحية الوصول لمركز الموافقات إطلاقاً

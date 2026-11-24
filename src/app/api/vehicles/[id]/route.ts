@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
 import { sql } from "drizzle-orm";
 
@@ -19,7 +19,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const resolvedParams = await Promise.resolve(params);
@@ -45,9 +45,6 @@ export async function PUT(
     const licenseExpiry = body.license_expiry || body.licenseExpiry || null;
     const fuelType = String(body.fuel_type || body.fuelType || "سولار و غاز طبيعى").trim();
     const notes = String(body.notes || "").trim();
-
-    // التأكد من وجود عمود sap_number وحفظه
-    await db.execute(sql`ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS sap_number TEXT`);
 
     const result = await db.execute(sql`
       UPDATE vehicles SET
@@ -86,7 +83,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const resolvedParams = await Promise.resolve(params);

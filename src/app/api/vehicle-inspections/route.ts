@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,7 @@ function auth(req: NextRequest) {
 // ── GET: جلب استمارات الفحص المكتملة ──
 export async function GET(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     let raw;
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 // ── POST: حفظ استمارة فحص جديدة ──
 export async function POST(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));

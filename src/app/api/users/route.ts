@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
-import { verifyToken } from "@/lib/auth";
+import { verifyToken, revalidateSession } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +24,7 @@ function powerOf(role?: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
 
     if (!user || powerOf(user.role) < ROLE_POWER.admin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = auth(req);
+    const user = await revalidateSession(auth(req));
 
     if (!user || powerOf(user.role) < ROLE_POWER.admin) {
       return NextResponse.json({ error: "Forbidden: Access Denied" }, { status: 403 });
