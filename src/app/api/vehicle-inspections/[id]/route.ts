@@ -51,7 +51,7 @@ export async function PUT(
     return NextResponse.json({ success: true, message: "تم تعديل تقرير الفحص بنجاح" });
   } catch (error: any) {
     console.error("PUT Inspection Error:", error);
-    return NextResponse.json({ error: error?.message || "فشل التعديل" }, { status: 500 });
+    return NextResponse.json({ error: "فشل التعديل" }, { status: 500 });
   }
 }
 
@@ -72,6 +72,6 @@ export async function DELETE(
     return NextResponse.json({ success: true, message: "تم حذف تقرير الفحص بنجاح" });
   } catch (error: any) {
     console.error("DELETE Inspection Error:", error);
-    return NextResponse.json({ error: error?.message || "فشل الحذف" }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحذف" }, { status: 500 });
   }
 }

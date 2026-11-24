@@ -77,7 +77,7 @@ export async function PUT(
     return NextResponse.json({ success: true, data: updated }, { status: 200 });
   } catch (error: any) {
     console.error("PUT Vehicle By ID Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
 }
 
@@ -95,6 +95,6 @@ export async function DELETE(
     await db.execute(sql`UPDATE vehicles SET is_deleted = 1 WHERE id = ${vehicleId} AND ${tenantClause(user)}`);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "حدث خطأ" }, { status: 500 });
   }
 }

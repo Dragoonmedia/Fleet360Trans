@@ -119,6 +119,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: newRow }, { status: 201 });
   } catch (error: any) {
     console.error("POST Inspection Error:", error);
-    return NextResponse.json({ error: `فشل الحفظ: ${error?.message || String(error)}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحفظ" }, { status: 500 });
   }
 }

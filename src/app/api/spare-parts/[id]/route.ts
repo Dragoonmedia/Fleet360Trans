@@ -50,7 +50,7 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: row });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "فشل التعديل" }, { status: 500 });
+    return NextResponse.json({ error: "فشل التعديل" }, { status: 500 });
   }
 }
 
@@ -65,6 +65,6 @@ export async function DELETE(
     await db.delete(spareParts).where(and(eq(spareParts.id, Number(id)), isGlobalUser(user) ? undefined : sql`COALESCE(${spareParts.tenantId}, 'master') = ${tenantOf(user)}`));
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "فشل الحذف" }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحذف" }, { status: 500 });
   }
 }

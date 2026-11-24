@@ -52,7 +52,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("PUT oil-changes/[id] error:", error);
-    return NextResponse.json({ error: "Failed to update", details: error?.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update" }, { status: 500 });
   }
 }
 

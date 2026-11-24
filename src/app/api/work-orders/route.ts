@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +19,8 @@ export async function GET(req: NextRequest) {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const tenantFilter =
-      user.role === "super_admin" || user.role === "owner" || !user.tenantId
-        ? sql`1=1`
-        : sql`(tenant_id = ${user.tenantId} OR tenant_id IS NULL OR tenant_id = 'master')`;
+    // 🔒 كان أي فرع بيشوف بيانات فرع master كمان. دلوقتي كل فرع بيشوف بياناته بس.
+    const tenantFilter = tenantClause(user);
 
     const orders = await db.execute(sql`
       SELECT 
@@ -95,7 +94,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: (result as any).rows?.[0] });
   } catch (error: any) {
     console.error("POST work-orders error:", error);
-    return NextResponse.json({ error: "Failed to create work order", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to create work order" }, { status: 500 });
   }
 }
 
@@ -128,12 +127,12 @@ export async function PUT(req: NextRequest) {
         cost = ${cost},
         start_date = ${startDate}::date,
         description = ${desc}
-      WHERE id = ${id}
+      WHERE id = ${id} AND ${tenantClause(user)}
     `);
 
     return NextResponse.json({ success: true, id, sap_number: sap });
   } catch (error: any) {
     console.error("PUT work-orders error:", error);
-    return NextResponse.json({ error: "Failed to update work order", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update work order" }, { status: 500 });
   }
 }

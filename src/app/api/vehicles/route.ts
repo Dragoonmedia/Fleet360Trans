@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: savedRow }, { status: 201 });
   } catch (error: any) {
     console.error("POST Vehicles Error:", error);
-    return NextResponse.json({ error: `فشل الحفظ: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحفظ" }, { status: 500 });
   }
 }
 
@@ -275,6 +275,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ success: true, data: updatedRow }, { status: 200 });
   } catch (error: any) {
     console.error("PUT Vehicles Error:", error);
-    return NextResponse.json({ error: `فشل التعديل: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل التعديل" }, { status: 500 });
   }
 }

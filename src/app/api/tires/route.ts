@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("POST Tire Error:", error);
-    return NextResponse.json({ error: `فشل الحفظ: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحفظ" }, { status: 500 });
   }
 }
 
@@ -144,6 +144,6 @@ export async function DELETE(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("DELETE Tire Error:", error);
-    return NextResponse.json({ error: `فشل الحذف: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحذف" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("POST Driver Error:", error);
-    return NextResponse.json({ error: `فشل الحفظ: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحفظ" }, { status: 500 });
   }
 }
 
@@ -106,7 +107,7 @@ export async function PUT(req: NextRequest) {
         role = ${role},
         phone = ${phone},
         notes = ${notes}
-      WHERE id = ${id}
+      WHERE id = ${id} AND ${tenantClause(user)}
       RETURNING *
     `);
 
@@ -118,7 +119,7 @@ export async function PUT(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("PUT Driver Error:", error);
-    return NextResponse.json({ error: `فشل التعديل: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل التعديل" }, { status: 500 });
   }
 }
 
@@ -141,7 +142,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     await db.execute(sql`
-      UPDATE drivers SET is_deleted = 1 WHERE id = ${driverId}
+      UPDATE drivers SET is_deleted = 1 WHERE id = ${driverId} AND ${tenantClause(user)}
     `);
 
     return NextResponse.json({
@@ -150,6 +151,6 @@ export async function DELETE(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("DELETE Driver Error:", error);
-    return NextResponse.json({ error: `فشل الحذف: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحذف" }, { status: 500 });
   }
 }

@@ -40,5 +40,5 @@ export async function POST(req: NextRequest) {
     `);
 
     return NextResponse.json({ success: true, data: (result as any).rows?.[0] }, { status: 201 });
-  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
+  } catch (e: any) { return NextResponse.json({ error: "حدث خطأ" }, { status: 500 }); }
 }

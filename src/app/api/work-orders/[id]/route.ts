@@ -51,7 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ success: true, id, sap_number: sap });
   } catch (error: any) {
     console.error("PUT /api/work-orders/[id] error:", error);
-    return NextResponse.json({ error: "Failed to update work order", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update work order" }, { status: 500 });
   }
 }
 

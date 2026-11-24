@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +20,8 @@ export async function GET(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // ✅ فلتر المستأجر المطور لدعم السجلات العامة والمستوردة
-    const tenantFilter =
-      user.role === "super_admin" || user.role === "owner" || !user.tenantId
-        ? sql`1=1`
-        : sql`(tenant_id = ${user.tenantId} OR tenant_id IS NULL OR tenant_id = 'master')`;
+    // 🔒 كان أي فرع بيشوف بيانات فرع master كمان. دلوقتي كل فرع بيشوف بياناته بس.
+    const tenantFilter = tenantClause(user);
 
     // ── 📊 1. التحليلات المالية الشهرية الحقيقية (آخر 6 شهور) مع معالجة التواريخ والـ Nulls ──
     const monthlyStatsRaw = await db.execute(sql`
@@ -154,6 +153,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Dashboard API Error:", error);
-    return NextResponse.json({ error: "API Error", details: error?.message }, { status: 500 });
+    return NextResponse.json({ error: "API Error" }, { status: 500 });
   }
 }

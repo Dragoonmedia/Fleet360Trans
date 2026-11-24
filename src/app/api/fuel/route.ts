@@ -56,6 +56,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, data: (result as any).rows?.[0] }, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ error: `فشل الحفظ: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحفظ" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +87,7 @@ export async function DELETE(
     });
   } catch (error: any) {
     console.error("DELETE Tire by ID Error:", error);
-    return NextResponse.json({ error: `فشل الحذف: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل الحذف" }, { status: 500 });
   }
 }
 
@@ -120,7 +121,7 @@ export async function PUT(
         cost = ${cost},
         next_change_km = ${nextChangeKm},
         notes = ${notes}
-      WHERE id = ${id}
+      WHERE id = ${id} AND ${tenantClause(user)}
       RETURNING *
     `);
 
@@ -131,6 +132,6 @@ export async function PUT(
       data: rows[0]
     });
   } catch (error: any) {
-    return NextResponse.json({ error: `فشل التعديل: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: "فشل التعديل" }, { status: 500 });
   }
 }

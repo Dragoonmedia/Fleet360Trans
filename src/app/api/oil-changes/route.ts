@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +19,8 @@ export async function GET(req: NextRequest) {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const tenantFilter =
-      user.role === "super_admin" || user.role === "owner" || !user.tenantId
-        ? sql`1=1`
-        : sql`(tenant_id = ${user.tenantId} OR tenant_id IS NULL OR tenant_id = 'master')`;
+    // 🔒 كان أي فرع بيشوف بيانات فرع master كمان. دلوقتي كل فرع بيشوف بياناته بس.
+    const tenantFilter = tenantClause(user);
 
     const records = await db.execute(sql`
       SELECT 
@@ -87,12 +86,12 @@ export async function PUT(req: NextRequest) {
         next_change_km = ${nextKm},
         filter_changed = ${filterChanged},
         filter_type = ${filterType}
-      WHERE id = ${Number(id)}
+      WHERE id = ${Number(id)} AND ${tenantClause(user)}
     `);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("PUT oil-changes error:", error);
-    return NextResponse.json({ error: "Failed to update", details: error?.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to update" }, { status: 500 });
   }
 }
