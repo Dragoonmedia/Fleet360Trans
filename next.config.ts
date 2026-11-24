@@ -9,10 +9,6 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  typescript: {
-    // إتاحة خيار بناء المشروع بنجاح دون التوقف عند تحذيرات TypeScript الثانوية
-    ignoreBuildErrors: true,
-  },
   poweredByHeader: false,
   async headers() {
     return [

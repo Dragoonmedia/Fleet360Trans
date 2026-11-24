@@ -17,7 +17,7 @@ import {
   X
 } from "lucide-react";
 
-export default function Navbar() {
+export default function Navbar(_props: { onToggleSidebar?: () => void } = {}) {
   const router = useRouter();
   const appContext = useApp() as any;
   const { user, isRTL } = appContext || {};

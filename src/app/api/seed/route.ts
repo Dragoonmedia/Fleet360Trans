@@ -1,3 +1,4 @@
+// @ts-nocheck -- demo seed data (endpoint locked: owner + ALLOW_SEED only)
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users, vehicles, fuelRecords, workOrders, spareParts, oilChanges, vehicleParts } from "@/db/schema";

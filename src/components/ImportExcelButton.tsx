@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import { Upload, Loader2 } from "lucide-react";
 
 interface ImportExcelButtonProps {
-  onImport: (data: any[]) => void | Promise<void>;
+  onImport: (data: any[]) => unknown;
   templateColumns?: string[];
   templateFileName?: string;
   mapRow?: (row: any) => any;

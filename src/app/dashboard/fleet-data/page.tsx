@@ -481,7 +481,7 @@ export default function FleetDataPage() {
 
         if (targetSection === "fuel") {
           const method = existingRecord && existingRecord.sectionKey === "fuel" ? "PUT" : "POST";
-          const url = method === "PUT" ? `/api/fuel/${existingRecord.rawId}` : "/api/fuel";
+          const url = method === "PUT" ? `/api/fuel/${existingRecord?.rawId}` : "/api/fuel";
 
           await fetch(url, {
             method,
@@ -513,7 +513,7 @@ export default function FleetDataPage() {
 
         } else if (targetSection === "oil") {
           const method = existingRecord && existingRecord.sectionKey === "oil" ? "PUT" : "POST";
-          const url = method === "PUT" ? `/api/oil-changes/${existingRecord.rawId}` : "/api/oil-changes";
+          const url = method === "PUT" ? `/api/oil-changes/${existingRecord?.rawId}` : "/api/oil-changes";
 
           await fetch(url, {
             method,
@@ -547,7 +547,7 @@ export default function FleetDataPage() {
 
         } else if (targetSection === "tires") {
           const method = existingRecord && existingRecord.sectionKey === "tires" ? "PUT" : "POST";
-          const url = method === "PUT" ? `/api/tires/${existingRecord.rawId}` : "/api/tires";
+          const url = method === "PUT" ? `/api/tires/${existingRecord?.rawId}` : "/api/tires";
 
           await fetch(url, {
             method,
@@ -575,7 +575,7 @@ export default function FleetDataPage() {
         } else {
           // 🔧 توجيه أوامر الصيانة برقم SAP الكامل
           const method = existingRecord && existingRecord.sectionKey === "work-orders" ? "PUT" : "POST";
-          const url = method === "PUT" ? `/api/work-orders/${existingRecord.rawId}` : "/api/work-orders";
+          const url = method === "PUT" ? `/api/work-orders/${existingRecord?.rawId}` : "/api/work-orders";
 
           await fetch(url, {
             method,

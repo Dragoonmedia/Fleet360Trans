@@ -37,7 +37,7 @@ export const exportToExcel = async (data: any[], fileName: string) => {
     };
 
     const isEven = colIndex % 2 === 0;
-    column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+    column.eachCell?.({ includeEmpty: true }, (cell, rowNumber) => {
       if (rowNumber > 1) {
         cell.fill = {
           type: "pattern",
@@ -79,7 +79,7 @@ export const downloadExcelTemplate = async (columns: string[], fileName: string,
     headerCell.alignment = { horizontal: "center", vertical: "middle" };
 
     const isEven = colIndex % 2 === 0;
-    column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+    column.eachCell?.({ includeEmpty: true }, (cell, rowNumber) => {
       if (rowNumber > 1) {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isEven ? "FFFFFFFF" : "FFF1F5F9" } };
         cell.alignment = { horizontal: "center", vertical: "middle" };

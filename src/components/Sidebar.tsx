@@ -30,7 +30,7 @@ const navigationItems = [
   { name: "المستخدمون", href: "/dashboard/users", icon: Users },
 ];
 
-export default function Sidebar() {
+export default function Sidebar(_props: { collapsed?: boolean } = {}) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);

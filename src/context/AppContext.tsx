@@ -11,6 +11,7 @@ interface User {
   name: string;
   role: string;
   permissions: string[];
+  tenantId?: string;
 }
 
 interface AppContextType {
