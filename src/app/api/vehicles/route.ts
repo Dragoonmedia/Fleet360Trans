@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
 import { sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest) {
     // فحص ما إذا كانت السيارة مسجلة مسبقاً بنفس رقم اللوحة لتحديث بياناتها ورقم الساب
     const check = await db.execute(sql`
       SELECT id FROM vehicles 
-      WHERE plate_number = ${plateNumber} AND is_deleted = 0 
+      WHERE plate_number = ${plateNumber} AND is_deleted = 0 AND ${tenantClause(user)}
       LIMIT 1
     `);
     const existing = (check as any).rows?.[0] || (check as any)[0];
@@ -241,7 +242,7 @@ export async function PUT(req: NextRequest) {
           license_expiry = ${licenseExpiry},
           fuel_type = ${fuelType},
           notes = ${notes}
-        WHERE id = ${id}
+        WHERE id = ${id} AND ${tenantClause(user)}
         RETURNING *
       `);
     } else if (plateNumber) {
@@ -263,7 +264,7 @@ export async function PUT(req: NextRequest) {
           license_expiry = ${licenseExpiry},
           fuel_type = ${fuelType},
           notes = ${notes}
-        WHERE plate_number = ${plateNumber} AND is_deleted = 0
+        WHERE plate_number = ${plateNumber} AND is_deleted = 0 AND ${tenantClause(user)}
         RETURNING *
       `);
     } else {

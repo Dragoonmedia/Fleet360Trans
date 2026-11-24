@@ -1,7 +1,14 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET = process.env.JWT_SECRET || "fleet360-secret-key-2024";
+// ⚠️ لا يوجد مفتاح افتراضي في الإنتاج: لازم JWT_SECRET يتحط في Environment Variables على Vercel
+// (يفضّل 32 حرف عشوائي أو أكتر). في بيئة التطوير فقط بنستخدم مفتاح مؤقت.
+function getSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (secret && secret.length >= 16) return secret;
+  if (process.env.NODE_ENV !== "production") return "dev-only-secret-do-not-use-in-production";
+  throw new Error("JWT_SECRET is missing or too short (min 16 chars)");
+}
 
 export interface JWTPayload {
   userId: number;
@@ -13,12 +20,12 @@ export interface JWTPayload {
 }
 
 export function signToken(payload: JWTPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" });
+  return jwt.sign(payload, getSecret(), { expiresIn: "24h", algorithm: "HS256" });
 }
 
 export function verifyToken(token: string): JWTPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as JWTPayload;
+    return jwt.verify(token, getSecret(), { algorithms: ["HS256"] }) as JWTPayload;
   } catch {
     return null;
   }

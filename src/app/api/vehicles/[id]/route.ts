@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
 import { sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -67,11 +68,12 @@ export async function PUT(
         license_expiry = ${licenseExpiry},
         fuel_type = ${fuelType},
         notes = ${notes}
-      WHERE id = ${vehicleId}
+      WHERE id = ${vehicleId} AND ${tenantClause(user)}
       RETURNING *
     `);
 
     const updated = (result as any).rows?.[0] || (result as any)[0];
+    if (!updated) return NextResponse.json({ error: "السيارة غير موجودة" }, { status: 404 });
     return NextResponse.json({ success: true, data: updated }, { status: 200 });
   } catch (error: any) {
     console.error("PUT Vehicle By ID Error:", error);
@@ -90,7 +92,7 @@ export async function DELETE(
     const resolvedParams = await Promise.resolve(params);
     const vehicleId = Number(resolvedParams.id);
 
-    await db.execute(sql`UPDATE vehicles SET is_deleted = 1 WHERE id = ${vehicleId}`);
+    await db.execute(sql`UPDATE vehicles SET is_deleted = 1 WHERE id = ${vehicleId} AND ${tenantClause(user)}`);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

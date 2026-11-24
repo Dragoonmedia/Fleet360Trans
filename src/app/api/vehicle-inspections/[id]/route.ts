@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function PUT(
         checklist = ${checklistJson}::jsonb,
         exterior_notes = ${body.exteriorNotes || ""},
         general_notes = ${body.generalNotes || ""}
-      WHERE id = ${id}
+      WHERE id = ${id} AND ${tenantClause(user)}
     `);
 
     return NextResponse.json({ success: true, message: "تم تعديل تقرير الفحص بنجاح" });
@@ -66,7 +67,7 @@ export async function DELETE(
     const params = await context.params;
     const id = Number(params.id);
 
-    await db.execute(sql`DELETE FROM vehicle_inspections WHERE id = ${id}`);
+    await db.execute(sql`DELETE FROM vehicle_inspections WHERE id = ${id} AND ${tenantClause(user)}`);
 
     return NextResponse.json({ success: true, message: "تم حذف تقرير الفحص بنجاح" });
   } catch (error: any) {

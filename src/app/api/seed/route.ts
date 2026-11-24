@@ -1,9 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users, vehicles, fuelRecords, workOrders, spareParts, oilChanges, vehicleParts } from "@/db/schema";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, verifyToken } from "@/lib/auth";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  // 🔒 كان الـ endpoint ده مفتوح لأي حد من غير تسجيل دخول وبيعمل حسابات admin/admin123.
+  // دلوقتي: مقفول افتراضياً، ومحتاج (1) ALLOW_SEED=true في البيئة و(2) تسجيل دخول بدور owner.
+  // يرجع 404 عشان ميبانش إنه موجود.
+  const caller = verifyToken(req.cookies.get("fleet360_token")?.value || "");
+  if (process.env.ALLOW_SEED !== "true" || !caller || caller.role !== "owner") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   try {
     // Create admin user
     const adminPass = await hashPassword("admin123");
@@ -67,6 +75,6 @@ export async function POST() {
     return NextResponse.json({ success: true, message: "Seed data created successfully" });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return NextResponse.json({ error: "Seed failed" }, { status: 500 });
   }
 }

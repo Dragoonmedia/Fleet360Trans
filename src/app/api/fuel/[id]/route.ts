@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { fuelRecords, vehicles } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export async function PUT(
 
     if ((!vehicleId || isNaN(vehicleId)) && plateNumber) {
       try {
-        const found = await db.select().from(vehicles).where(eq(vehicles.plateNumber, plateNumber)).limit(1);
+        const found = await db.select().from(vehicles).where(and(eq(vehicles.plateNumber, plateNumber), isGlobalUser(user) ? undefined : sql`COALESCE(${vehicles.tenantId}, 'master') = ${tenantOf(user)}`)).limit(1);
         if (found[0]?.id) vehicleId = found[0].id;
       } catch {}
     }
@@ -61,14 +62,14 @@ export async function PUT(
         station: String(b.station || ""),
         fuelDate: toDate(b.fuelDate || b.fuel_date),
       } as any)
-      .where(eq(fuelRecords.id, id))
+      .where(and(eq(fuelRecords.id, id), isGlobalUser(user) ? undefined : sql`COALESCE(${fuelRecords.tenantId}, 'master') = ${tenantOf(user)}`))
       .returning();
 
     if (vehicleId && odometer > 0) {
       try {
         await db.execute(sql`
           UPDATE vehicles SET current_km = GREATEST(COALESCE(current_km, 0), ${odometer})
-          WHERE id = ${vehicleId}
+          WHERE id = ${vehicleId} AND ${tenantClause(user)}
         `);
       } catch {}
     }
@@ -87,7 +88,7 @@ export async function DELETE(
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await ctx.params;
-    await db.delete(fuelRecords).where(eq(fuelRecords.id, Number(id)));
+    await db.delete(fuelRecords).where(and(eq(fuelRecords.id, Number(id)), isGlobalUser(user) ? undefined : sql`COALESCE(${fuelRecords.tenantId}, 'master') = ${tenantOf(user)}`));
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "فشل الحذف" }, { status: 500 });

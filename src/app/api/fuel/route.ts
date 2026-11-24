@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { fuelRecords, vehicles } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantOf } from "@/lib/guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
   try {
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const raw = await db.execute(sql`SELECT * FROM fuel_records WHERE tenant_id = ${user.tenantId} AND is_deleted = 0 ORDER BY id DESC`);
+    const raw = await db.execute(sql`SELECT * FROM fuel_records WHERE tenant_id = ${tenantOf(user)} AND is_deleted = 0 ORDER BY id DESC`);
     return NextResponse.json((raw as any).rows || raw || []);
   } catch (error) { return NextResponse.json([], { status: 200 }); }
 }
@@ -36,20 +37,20 @@ export async function POST(req: NextRequest) {
 
     const result = await db.execute(sql`
       INSERT INTO fuel_records (tenant_id, vehicle_id, plate_number, driver_name, liters, cost_per_liter, total_cost, odometer, station, fuel_date)
-      VALUES (${user.tenantId}, ${vehicleId}, ${plateNumber}, ${body.driverName || ""}, ${litersNum}, ${costPerLiterNum}, ${totalCostNum}, ${odometerNum}, ${body.station || ""}, ${body.fuelDate || null})
+      VALUES (${tenantOf(user)}, ${vehicleId}, ${plateNumber}, ${body.driverName || ""}, ${litersNum}, ${costPerLiterNum}, ${totalCostNum}, ${odometerNum}, ${body.station || ""}, ${body.fuelDate || null})
       RETURNING *
     `);
     
     // ⚡ تحديث عداد السيارة
     if (vehicleId && odometerNum > 0) {
-      try { await db.execute(sql`UPDATE vehicles SET current_km = GREATEST(COALESCE(current_km, 0), ${odometerNum}) WHERE id = ${vehicleId} AND tenant_id = ${user.tenantId}`); } catch {}
+      try { await db.execute(sql`UPDATE vehicles SET current_km = GREATEST(COALESCE(current_km, 0), ${odometerNum}) WHERE id = ${vehicleId} AND tenant_id = ${tenantOf(user)}`); } catch {}
     }
 
     // ⚡ تسجيل الحركة في الـ Audit Log أوتوماتيكياً
     try {
       await db.execute(sql`
         INSERT INTO history_logs (tenant_id, plate_number, module_name, action_type, user_name)
-        VALUES (${user.tenantId}, ${plateNumber}, 'سجلات الوقود', 'إضافة فاتورة وقود جديدة', ${user.username})
+        VALUES (${tenantOf(user)}, ${plateNumber}, 'سجلات الوقود', 'إضافة فاتورة وقود جديدة', ${user.username})
       `);
     } catch (logErr) { console.error("History Log Error:", logErr); }
 

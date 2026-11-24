@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         cost = ${cost},
         start_date = ${startDate}::date,
         description = ${desc}
-      WHERE id = ${id}
+      WHERE id = ${id} AND ${tenantClause(user)}
     `);
 
     return NextResponse.json({ success: true, id, sap_number: sap });
@@ -63,7 +64,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const id = Number(resolvedParams.id);
 
     await db.execute(sql`
-      UPDATE work_orders SET is_deleted = 1, status = 'deleted' WHERE id = ${id}
+      UPDATE work_orders SET is_deleted = 1, status = 'deleted' WHERE id = ${id} AND ${tenantClause(user)}
     `);
 
     return NextResponse.json({ success: true });

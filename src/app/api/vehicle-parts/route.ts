@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause, tenantOf } from "@/lib/guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -23,9 +24,9 @@ export async function GET(req: NextRequest) {
     // نحاول الجلب من جدول الاستمارات أو جدول الأجزاء
     let raw: any;
     try {
-      raw = await db.execute(sql`SELECT * FROM vehicle_inspections ORDER BY id DESC`);
+      raw = await db.execute(sql`SELECT * FROM vehicle_inspections WHERE ${tenantClause(user)} ORDER BY id DESC`);
     } catch {
-      raw = await db.execute(sql`SELECT * FROM vehicle_parts ORDER BY id DESC`);
+      raw = await db.execute(sql`SELECT * FROM vehicle_parts WHERE ${tenantClause(user)} ORDER BY id DESC`);
     }
 
     const rows = (raw as any).rows || raw || [];
@@ -81,10 +82,10 @@ export async function POST(req: NextRequest) {
     try {
       const result = await db.execute(sql`
         INSERT INTO vehicle_inspections (
-          vehicle_id, plate_number, inspection_date, odometer, branch_name, 
+          tenant_id, vehicle_id, plate_number, inspection_date, odometer, branch_name, 
           driver_name, inspector_name, checklist, exterior_notes, general_notes
         ) VALUES (
-          ${vehicleId}, ${plateNumber}, ${inspectionDate}, ${odometer}, 
+          ${tenantOf(user)}, ${vehicleId}, ${plateNumber}, ${inspectionDate}, ${odometer}, 
           ${branchName}, ${driverName}, ${inspectorName}, ${checklistJson}::jsonb, 
           ${exteriorNotes}, ${generalNotes}
         ) RETURNING *
@@ -94,10 +95,10 @@ export async function POST(req: NextRequest) {
       // Fallback لجدول vehicle_parts إذا لم ينشأ الجدول الآخر
       const result = await db.execute(sql`
         INSERT INTO vehicle_parts (
-          vehicle_id, plate_number, part_name, brand, supplier, 
+          tenant_id, vehicle_id, plate_number, part_name, brand, supplier, 
           install_date, km_at_install, condition, notes
         ) VALUES (
-          ${vehicleId}, ${plateNumber}, ${inspectorName}, ${driverName}, ${branchName},
+          ${tenantOf(user)}, ${vehicleId}, ${plateNumber}, ${inspectorName}, ${driverName}, ${branchName},
           ${inspectionDate}, ${odometer}, 'good', ${generalNotes}
         ) RETURNING *
       `);
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
         await db.execute(sql`
           UPDATE vehicles 
           SET current_km = GREATEST(COALESCE(current_km, 0), ${odometer})
-          WHERE id = ${vehicleId}
+          WHERE id = ${vehicleId} AND ${tenantClause(user)}
         `);
       } catch {}
     }

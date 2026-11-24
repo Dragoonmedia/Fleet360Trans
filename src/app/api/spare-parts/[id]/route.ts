@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { spareParts } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
+import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function PUT(
         location: String(b.location || ""),
         status: String(b.status || "available"),
       } as any)
-      .where(eq(spareParts.id, id))
+      .where(and(eq(spareParts.id, id), isGlobalUser(user) ? undefined : sql`COALESCE(${spareParts.tenantId}, 'master') = ${tenantOf(user)}`))
       .returning();
 
     return NextResponse.json({ success: true, data: row });
@@ -61,7 +62,7 @@ export async function DELETE(
     const user = auth(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const { id } = await ctx.params;
-    await db.delete(spareParts).where(eq(spareParts.id, Number(id)));
+    await db.delete(spareParts).where(and(eq(spareParts.id, Number(id)), isGlobalUser(user) ? undefined : sql`COALESCE(${spareParts.tenantId}, 'master') = ${tenantOf(user)}`));
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "فشل الحذف" }, { status: 500 });
