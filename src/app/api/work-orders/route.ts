@@ -44,6 +44,8 @@ export async function GET(req: NextRequest) {
         COALESCE(start_date::text, created_at::date::text, '') as "startDate",
         COALESCE(status, 'completed') as status,
         COALESCE(description, '') as description,
+        COALESCE(notes, '') as notes,
+        COALESCE(workshop, '') as workshop,
         COALESCE(is_deleted, 0) as is_deleted,
         created_at
       FROM work_orders

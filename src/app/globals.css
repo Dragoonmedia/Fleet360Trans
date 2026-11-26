@@ -82,3 +82,13 @@ table {
 .alert-pulse {
   animation: pulse-orange 2s infinite;
 }
+
+/* ─── Import report window: print only the report ─────────── */
+@media print {
+  body > *:not(#import-report) { display: none !important; }
+  #import-report { position: static !important; overflow: visible !important; height: auto !important; background: #fff !important; }
+  #import-report .no-print { display: none !important; }
+  #import-report .report-body { max-width: none !important; padding: 0 !important; }
+  #import-report tr { break-inside: avoid; }
+  @page { size: A4 landscape; margin: 10mm; }
+}

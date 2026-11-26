@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const [workOrders, setWorkOrders] = useState<any[]>([]);
   const [fuelRecords, setFuelRecords] = useState<any[]>([]);
   const [oilChanges, setOilChanges] = useState<any[]>([]);
+  const [tires, setTires] = useState<any[]>([]);
   const [dashboardData, setDashboardData] = useState<any>(null);
 
   useEffect(() => {
@@ -65,11 +66,12 @@ export default function DashboardPage() {
   const fetchAllDashboardData = useCallback(async () => {
     setLoading(true);
     try {
-      const [vehData, woData, fuelData, oilData, dashData] = await Promise.all([
+      const [vehData, woData, fuelData, oilData, tireData, dashData] = await Promise.all([
         safeFetchArray("/api/vehicles"),
         safeFetchArray("/api/work-orders"),
         safeFetchArray("/api/fuel"),
         safeFetchArray("/api/oil-changes"),
+        safeFetchArray("/api/tires"),
         fetch("/api/dashboard", { cache: "no-store" }).then(r => r.ok ? r.json() : {}).catch(() => ({}))
       ]);
 
@@ -77,6 +79,7 @@ export default function DashboardPage() {
       setWorkOrders(woData);
       setFuelRecords(fuelData);
       setOilChanges(oilData);
+      setTires(tireData);
       setDashboardData(dashData);
     } catch (error) {
       console.error("Dashboard Data Sync Error:", error);
@@ -96,28 +99,36 @@ export default function DashboardPage() {
   const safeFuelRecords = Array.isArray(fuelRecords) ? fuelRecords : [];
   const safeOilChanges = Array.isArray(oilChanges) ? oilChanges : [];
 
-  const totalVehicles = safeVehicles.length || safeNum(dashboardData?.summary?.totalVehicles ?? 31);
-  const activeVehicles = safeVehicles.filter(v => v && (v.status === "active" || v.status === "نشطة")).length || totalVehicles;
-  const maintenanceVehicles = safeVehicles.filter(v => v && (v.status === "maintenance" || v.status === "صيانة")).length;
-  const stoppedVehicles = safeVehicles.filter(v => v && (v.status === "stopped" || v.status === "متوقفة")).length;
+  const totalVehicles = safeVehicles.length;
+  const statusOf = (v: any) => String(v?.status || "").trim();
+  const isMaint = (v: any) => ["maintenance", "صيانة", "تحت الصيانة"].includes(statusOf(v));
+  const isStopped = (v: any) => statusOf(v) === "stopped" || statusOf(v).startsWith("متوقفة") || statusOf(v) === "معطلة";
+  const maintenanceVehicles = safeVehicles.filter(isMaint).length;
+  const stoppedVehicles = safeVehicles.filter(isStopped).length;
+  const activeVehicles = totalVehicles - maintenanceVehicles - stoppedVehicles;
   
   const activePct = totalVehicles ? Math.round((activeVehicles / totalVehicles) * 100) : 0;
   const maintPct = totalVehicles ? Math.round((maintenanceVehicles / totalVehicles) * 100) : 0;
   const stoppedPct = totalVehicles ? Math.round((stoppedVehicles / totalVehicles) * 100) : 0;
 
-  const openWorkOrders = safeWorkOrders.filter(w => w && w.status !== "completed").length;
+  // أوامر الشغل فيها صيانة + رسوم وتراخيص + غسيل (من شيت SAP)؛ كل نوع يتحسب لوحده
+  const woType = (w: any) => String(w?.maintenanceType || w?.maintenance_type || "");
+  const woCost = (w: any) => safeNum(w?.cost ?? w?.total_cost ?? w?.amount);
+  const maintenanceOrders = safeWorkOrders.filter(w => w && woType(w) !== "رسوم وتراخيص" && woType(w) !== "غسيل");
+  const feesOrders = safeWorkOrders.filter(w => w && woType(w) === "رسوم وتراخيص");
+  const washOrders = safeWorkOrders.filter(w => w && woType(w) === "غسيل");
 
-  const calculatedMaintCost = safeWorkOrders.reduce((sum, w) => sum + safeNum(w.cost ?? w.total_cost ?? w.amount), 0);
-  const totalMaintenanceCost = calculatedMaintCost > 0 
-    ? calculatedMaintCost 
-    : safeNum(dashboardData?.summary?.totalMaintenanceCost ?? 197155.38);
+  const openWorkOrders = maintenanceOrders.filter(w => w.status && w.status !== "completed").length;
 
-  const calculatedFuelCost = safeFuelRecords.reduce((sum, r) => sum + safeNum(r.totalCost ?? r.total_cost ?? r.cost ?? r.amount), 0);
-  const totalFuelCost = calculatedFuelCost > 0 
-    ? calculatedFuelCost 
-    : safeNum(dashboardData?.summary?.totalFuelCost ?? 86123.18);
+  const totalMaintenanceCost = maintenanceOrders.reduce((sum, w) => sum + woCost(w), 0);
+  const totalFeesCost = feesOrders.reduce((sum, w) => sum + woCost(w), 0);
+  const totalWashCost = washOrders.reduce((sum, w) => sum + woCost(w), 0);
+  const totalOilTiresCost =
+    safeOilChanges.reduce((sum, o) => sum + safeNum(o.cost), 0) +
+    (Array.isArray(tires) ? tires : []).reduce((sum, t) => sum + safeNum(t.cost), 0);
 
-  const totalFuelOps = safeFuelRecords.length > 0 ? safeFuelRecords.length : 28;
+  const totalFuelCost = safeFuelRecords.reduce((sum, r) => sum + safeNum(r.totalCost ?? r.total_cost ?? r.cost ?? r.amount), 0);
+  const totalFuelOps = safeFuelRecords.length;
 
   const today = new Date();
   const thirtyDaysFromNow = new Date();
@@ -129,9 +140,22 @@ export default function DashboardPage() {
     if (!exp) return false;
     const expiryDate = new Date(exp);
     return !isNaN(expiryDate.getTime()) && expiryDate <= thirtyDaysFromNow;
-  }).length || 8;
+  }).length;
 
-  const lateOilChanges = safeOilChanges.filter(o => o && (o.kmAlert || o.dayAlert)).length;
+  // زيت متأخر: عداد السيارة الحالي وصل أو عدّى عداد الغيار القادم في آخر غيار مسجل لها
+  const latestOilByPlate = new Map<string, any>();
+  for (const o of safeOilChanges) {
+    const plate = o?.plateNumber || o?.plate_number;
+    if (!plate) continue;
+    const prev = latestOilByPlate.get(plate);
+    if (!prev || String(o.changeDate || "") > String(prev.changeDate || "")) latestOilByPlate.set(plate, o);
+  }
+  const lateOilChanges = safeVehicles.filter(v => {
+    const o = latestOilByPlate.get(v?.plateNumber || v?.plate_number);
+    const nextKm = safeNum(o?.nextKm ?? o?.next_km);
+    const km = safeNum(v?.current_km ?? v?.currentKm);
+    return nextKm > 0 && km > 0 && km >= nextKm;
+  }).length;
   const tireAlerts = safeWorkOrders.filter(w => {
     if (!w || w.status === "completed") return false;
     const type = String(w.maintenanceType || w.maintenance_type || "").toLowerCase();
@@ -146,13 +170,8 @@ export default function DashboardPage() {
       name: m.month || "",
       "تكلفة الوقود": safeNum(m.fuel_cost ?? m.fuelCost),
       "تكلفة الصيانة": safeNum(m.maintenance_cost ?? m.maintenanceCost),
+      "رسوم وتراخيص": safeNum(m.fees_cost),
     }));
-  } else {
-    chartData = [
-      { name: "Aug 2026", "تكلفة الوقود": 35000, "تكلفة الصيانة": 95000 },
-      { name: "Sep 2026", "تكلفة الوقود": 28000, "تكلفة الصيانة": 60000 },
-      { name: "Oct 2026", "تكلفة الوقود": 23123, "تكلفة الصيانة": 42155 },
-    ];
   }
 
   if (loading || !mounted) {
@@ -285,7 +304,10 @@ export default function DashboardPage() {
                 <span className="text-xs font-bold text-cyan-200">ج.م</span>
               </div>
               <span className="text-[11px] text-teal-100 font-semibold mt-1 inline-block">
-                {safeWorkOrders.length || 62} أمر صيانة مسجل
+                {maintenanceOrders.length} أمر صيانة مسجل
+              </span>
+              <span className="block text-[10px] text-cyan-100/90 font-semibold mt-0.5">
+                رسوم وتراخيص {totalFeesCost.toLocaleString()} • زيوت وكاوتش {totalOilTiresCost.toLocaleString()} • غسيل {totalWashCost.toLocaleString()} ج.م
               </span>
             </div>
             <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-md group-hover:bg-teal-500 transition-colors">
@@ -408,6 +430,7 @@ export default function DashboardPage() {
                 <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontWeight: 'bold', fontSize: '12px' }} />
                 <Bar dataKey="تكلفة الوقود" fill="#0EA5E9" radius={[6, 6, 0, 0]} maxBarSize={40} />
                 <Bar dataKey="تكلفة الصيانة" fill="#F97316" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="رسوم وتراخيص" fill="#A855F7" radius={[6, 6, 0, 0]} maxBarSize={40} />
               </BarChart>
             </ResponsiveContainer>
           </div>

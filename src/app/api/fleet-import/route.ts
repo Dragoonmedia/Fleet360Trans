@@ -151,6 +151,10 @@ export async function POST(req: NextRequest) {
       for (const k of Object.keys(CATEGORY_LABEL)) counts[k] = { inserted: 0, updated: 0, cost: 0 };
       const unmatched = new Map<string, { equipment: string; equipmentDesc: string; count: number }>();
 
+      const details: {
+        order: string; date: string | null; plate: string; equipment: string; equipmentDesc: string;
+        description: string; category: string; cost: number; estimated: boolean; status: string;
+      }[] = [];
       const inserts: Record<Table, SQL[]> = { fuel_records: [], oil_changes: [], tires: [], work_orders: [] };
       const updates: { table: Table; id: number; r: CleanRow; v: VehicleRow; cat: FleetCategory }[] = [];
 
@@ -160,6 +164,7 @@ export async function POST(req: NextRequest) {
           const u = unmatched.get(r.equipment) || { equipment: r.equipment, equipmentDesc: r.equipmentDesc, count: 0 };
           u.count++;
           unmatched.set(r.equipment, u);
+          details.push({ order: r.order, date: r.date, plate: "", equipment: r.equipment, equipmentDesc: r.equipmentDesc, description: r.description, category: CATEGORY_LABEL[classify(r.description)], cost: r.cost, estimated: r.estimated, status: "غير مربوط" });
           continue;
         }
         const cat = classify(r.description);
@@ -170,6 +175,7 @@ export async function POST(req: NextRequest) {
           .join(" | ");
 
         const ex = existing.get(r.order);
+        details.push({ order: r.order, date: r.date, plate: v.plate_number, equipment: r.equipment, equipmentDesc: r.equipmentDesc, description: r.description, category: CATEGORY_LABEL[cat], cost: r.cost, estimated: r.estimated, status: ex ? "محدث" : "جديد" });
         if (ex) {
           updates.push({ table: ex.table, id: ex.id, r, v, cat });
           counts[cat].updated++;
@@ -241,6 +247,7 @@ export async function POST(req: NextRequest) {
         ),
         linkedVehicles: linked,
         unmatched: [...unmatched.values()],
+        details,
       };
     });
 

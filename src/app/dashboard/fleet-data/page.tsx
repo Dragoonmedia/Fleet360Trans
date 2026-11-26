@@ -8,6 +8,7 @@ import FilterBar from "@/components/ui/FilterBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ImportExcelButton from "@/components/ImportExcelButton";
 import { isSapSheet, normalizeSapRows } from "@/lib/fleetSheet";
+import ImportReport, { type ImportResult } from "@/components/ImportReport";
 import { canWrite as canWriteModule } from "@/lib/permissions";
 import {
   Truck,
@@ -202,6 +203,7 @@ export default function FleetDataPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [allRecords, setAllRecords] = useState<FleetRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importReport, setImportReport] = useState<ImportResult | null>(null);
 
   const [search, setSearch] = useState("");
   const [selectedPlates, setSelectedPlates] = useState<string[]>([]);
@@ -451,20 +453,7 @@ export default function FleetDataPage() {
           alert(data.error || "فشل استيراد الشيت");
           return;
         }
-        const lines = Object.entries(data.byCategory || {})
-          .filter(([, c]: any) => c.inserted || c.updated)
-          .map(([k, c]: any) => `- ${k}: ${c.inserted} جديد، ${c.updated} محدث (${Number(c.cost).toLocaleString()} ج.م)`);
-        let msg = `تم استيراد شيت SAP:\n${lines.join("\n")}\n\nالإجمالي: ${data.inserted} فاتورة جديدة، ${data.updated} فاتورة محدثة.`;
-        if (data.linkedVehicles?.length) {
-          msg += `\n\nتم ربط ${data.linkedVehicles.length} سيارة برقم SAP الخاص بها:\n` +
-            data.linkedVehicles.map((l: any) => `- ${l.plate} ← ${l.equipment}`).join("\n");
-        }
-        if (data.unmatched?.length) {
-          msg += `\n\nفواتير لم تُستورد لأن السيارة غير موجودة في قائمة السيارات:\n` +
-            data.unmatched.map((u: any) => `- ${u.equipment} (${u.equipmentDesc}): ${u.count} فاتورة`).join("\n") +
-            `\nأضف هذه السيارات برقم SAP الخاص بها ثم أعد استيراد الشيت.`;
-        }
-        alert(msg);
+        setImportReport(data as ImportResult);
         loadFleetData();
       } catch {
         alert("خطأ في الاتصال بالخادم أثناء الاستيراد");
@@ -767,6 +756,9 @@ export default function FleetDataPage() {
 
   return (
     <div className="w-full space-y-6" dir="rtl">
+      {importReport && (
+        <ImportReport result={importReport} userName={user?.name || user?.username} onClose={() => setImportReport(null)} />
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <div className="bg-gradient-to-br from-blue-900 to-blue-700 text-white rounded-2xl p-5 shadow-lg relative overflow-hidden">
           <div className="flex justify-between items-start relative z-10">

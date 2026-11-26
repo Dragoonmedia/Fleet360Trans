@@ -15,7 +15,8 @@ import {
   Clock, 
   DollarSign, 
   Pencil, 
-  Trash2 
+  Trash2,
+  FileText
 } from "lucide-react";
 
 const safeNum = (val: any) => { 
@@ -130,6 +131,7 @@ export default function WorkOrdersPage() {
   const [activeTab, setActiveTab] = useState<"active" | "deleted">("active");
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [details, setDetails] = useState<any>(null);
   const [editing, setEditing] = useState<any>({});
   const [isEdit, setIsEdit] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -295,7 +297,8 @@ export default function WorkOrdersPage() {
       String(r.orderNumber).toLowerCase().includes(search.toLowerCase()) ||
       String(r.plateNumber).toLowerCase().includes(search.toLowerCase()) ||
       String(r.maintenanceType).toLowerCase().includes(search.toLowerCase()) ||
-      String(r.sapNumber).toLowerCase().includes(search.toLowerCase());
+      String(r.sapNumber).toLowerCase().includes(search.toLowerCase()) ||
+      String(r.description || "").toLowerCase().includes(search.toLowerCase());
 
     const typeMatch = typeFilter === "الكل" || r.maintenanceType === typeFilter;
     const statusMatch = statusFilter === "الكل" || r.status === statusFilter;
@@ -402,7 +405,7 @@ export default function WorkOrdersPage() {
             type="text" 
             value={search} 
             onChange={e => setSearch(e.target.value)} 
-            placeholder="بحث بالأمر، اللوحة، SAP..." 
+            placeholder="بحث بالأمر، اللوحة، SAP، الوصف..." 
             className="border dark:border-gray-700 rounded-lg px-2.5 py-1.5 text-xs outline-none w-44 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-teal-500/30" 
           />
         </div>
@@ -478,6 +481,15 @@ export default function WorkOrdersPage() {
                 )
               ) 
             },
+            {
+              key: "description",
+              header: "الوصف",
+              render: (r: any) => (
+                <span className="block max-w-[320px] text-xs text-gray-700 dark:text-gray-300 whitespace-normal leading-5" title={r.description}>
+                  {r.description || "-"}
+                </span>
+              )
+            },
             { 
               key: "targetApproval", 
               header: "موجه للموافقة إلى", 
@@ -505,7 +517,8 @@ export default function WorkOrdersPage() {
               key: "actions",
               header: "إجراء",
               render: (r: any) => (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  {canWrite && (
                   <button
                     onClick={() => handleOpenEdit(r)}
                     className="flex items-center gap-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-600 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 transition-colors cursor-pointer"
@@ -513,6 +526,7 @@ export default function WorkOrdersPage() {
                     <Pencil size={13} />
                     <span>تعديل</span>
                   </button>
+                  )}
                   {canWrite && (
                     <button
                       onClick={() => handleDelete(r.id)}
@@ -527,8 +541,68 @@ export default function WorkOrdersPage() {
           ]} 
           data={filteredData} 
           loading={loading} 
+          onRowClick={(r: any) => setDetails(r)}
         />
       </div>
+
+      <Modal open={!!details} onClose={() => setDetails(null)} title="تفاصيل أمر الصيانة" size="lg">
+        {details && (() => {
+          const noteParts = String(details.notes || "").split(" | ").map((x: string) => x.trim()).filter(Boolean);
+          const sapEquipDesc = /^SAP\s/.test(noteParts[0] || "") ? noteParts[1] : "";
+          const enteredBy = noteParts.find((x: string) => /^[A-Z]\.[A-Z]/.test(x));
+          const estimated = noteParts.includes("تكلفة تقديرية");
+          const Item = ({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) => (
+            <div className="bg-gray-50 dark:bg-gray-800/60 rounded-xl p-3 border border-gray-100 dark:border-gray-800">
+              <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">{label}</div>
+              <div className={`text-sm font-bold text-gray-900 dark:text-white ${mono ? "font-mono" : ""}`}>{value || "-"}</div>
+            </div>
+          );
+          return (
+            <div className="space-y-4" dir="rtl">
+              <div className="rounded-2xl bg-gradient-to-l from-blue-900 to-blue-700 text-white p-4 flex items-start gap-3">
+                <div className="p-2 bg-white/10 rounded-xl"><FileText size={22} /></div>
+                <div className="flex-1">
+                  <div className="text-xs text-blue-200 font-bold mb-1">الوصف الكامل</div>
+                  <p className="text-sm font-bold leading-7 whitespace-pre-wrap">{details.description || "-"}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Item label="رقم SAP (الفاتورة)" value={details.sapNumber} mono />
+                <Item label="رقم الأمر" value={details.orderNumber} mono />
+                <Item label="اللوحة" value={details.vehicleDisplay || details.plateNumber} />
+                <Item label="بيان السيارة في SAP" value={sapEquipDesc} />
+                <Item label="نوع الصيانة" value={details.maintenanceType} />
+                <Item label="نوع العملية" value={details.operationType} />
+                <Item label="التاريخ" value={details.startDate} mono />
+                <Item
+                  label={estimated ? "التكلفة (تقديرية من SAP)" : "التكلفة"}
+                  value={<span className="text-emerald-600 dark:text-emerald-400">{safeNum(details.cost).toLocaleString()} ج.م</span>}
+                />
+                <Item label="الحالة" value={details.status === "completed" ? "مكتمل" : details.status === "pending" ? "معلق" : details.status} />
+                <Item label="أُدخل في SAP بواسطة" value={enteredBy} mono />
+                {details.workshop ? <Item label="الورشة" value={details.workshop} /> : null}
+                {details.targetApproval && details.targetApproval !== "-" ? <Item label="موجه للموافقة إلى" value={details.targetApproval} /> : null}
+              </div>
+              {details.notes ? (
+                <div className="text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-800 pt-3">
+                  <span className="font-bold">ملاحظات: </span>{details.notes}
+                </div>
+              ) : null}
+              <div className="flex gap-2 justify-end">
+                {canWrite && (
+                  <button
+                    onClick={() => { const d = details; setDetails(null); handleOpenEdit(d); }}
+                    className="flex items-center gap-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white px-4 py-2 rounded-lg border border-teal-200 transition-colors cursor-pointer"
+                  >
+                    <Pencil size={13} /> تعديل
+                  </button>
+                )}
+                <button onClick={() => setDetails(null)} className="text-xs font-bold px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 cursor-pointer">إغلاق</button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={isEdit ? "تعديل أمر الشغل والصيانة" : "إضافة أمر صيانة جديد"} size="lg">
         <form onSubmit={handleSave} className="grid grid-cols-2 gap-4">

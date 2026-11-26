@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
         DATE_TRUNC('month', created_at) as sort_date,
         COALESCE(SUM(CASE WHEN source = 'fuel' THEN cost ELSE 0 END), 0)::numeric as fuel_cost,
         COALESCE(SUM(CASE WHEN source = 'fuel' THEN liters ELSE 0 END), 0)::numeric as fuel_liters,
-        COALESCE(SUM(CASE WHEN source = 'maintenance' THEN cost ELSE 0 END), 0)::numeric as maintenance_cost
+        COALESCE(SUM(CASE WHEN source = 'maintenance' THEN cost ELSE 0 END), 0)::numeric as maintenance_cost,
+        COALESCE(SUM(CASE WHEN source = 'fees' THEN cost ELSE 0 END), 0)::numeric as fees_cost
       FROM (
         SELECT 
           COALESCE(fuel_date::timestamp, created_at, NOW()) as created_at, 
@@ -46,11 +47,13 @@ export async function GET(req: NextRequest) {
           COALESCE(start_date::timestamp, created_at, NOW()) as created_at, 
           COALESCE(NULLIF(cost::text, '')::numeric, 0) as cost,
           0 as liters,
-          'maintenance' as source 
+          CASE WHEN maintenance_type = 'رسوم وتراخيص' THEN 'fees'
+               WHEN maintenance_type = 'غسيل' THEN 'wash'
+               ELSE 'maintenance' END as source 
         FROM work_orders 
         WHERE (is_deleted = 0 OR is_deleted IS NULL) AND ${tenantFilter}
       ) combined_data
-      WHERE created_at >= (CURRENT_DATE - INTERVAL '6 months')
+      WHERE created_at >= (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months')
       GROUP BY DATE_TRUNC('month', created_at)
       ORDER BY DATE_TRUNC('month', created_at) ASC
     `);
@@ -64,6 +67,7 @@ export async function GET(req: NextRequest) {
         
         COALESCE(COUNT(CASE WHEN source = 'maintenance' THEN 1 END), 0) as total_maintenance_ops,
         COALESCE(SUM(CASE WHEN source = 'maintenance' THEN cost ELSE 0 END), 0)::numeric as total_maintenance_cost,
+        COALESCE(SUM(CASE WHEN source = 'fees' THEN cost ELSE 0 END), 0)::numeric as total_fees_cost,
 
         COALESCE(SUM(CASE WHEN source = 'fuel' AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE) THEN cost ELSE 0 END), 0)::numeric as this_month_fuel_cost,
         COALESCE(SUM(CASE WHEN source = 'fuel' AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE) THEN liters ELSE 0 END), 0)::numeric as this_month_fuel_liters,
@@ -83,7 +87,9 @@ export async function GET(req: NextRequest) {
           COALESCE(start_date::timestamp, created_at, NOW()) as created_at, 
           COALESCE(NULLIF(cost::text, '')::numeric, 0) as cost,
           0 as liters,
-          'maintenance' as source 
+          CASE WHEN maintenance_type = 'رسوم وتراخيص' THEN 'fees'
+               WHEN maintenance_type = 'غسيل' THEN 'wash'
+               ELSE 'maintenance' END as source 
         FROM work_orders 
         WHERE (is_deleted = 0 OR is_deleted IS NULL) AND ${tenantFilter}
       ) all_transactions
@@ -118,6 +124,7 @@ export async function GET(req: NextRequest) {
       maintenance_cost: Number(r.maintenance_cost) || 0,
       fuelCost: Number(r.fuel_cost) || 0,
       maintenanceCost: Number(r.maintenance_cost) || 0,
+      fees_cost: Number(r.fees_cost) || 0,
     }));
 
     const totalStats = ((totalStatsRaw as any).rows || totalStatsRaw || [])[0] || {};
@@ -135,6 +142,7 @@ export async function GET(req: NextRequest) {
       totalFuelOperations: Number(totalStats.total_fuel_ops) || 0,
       totalMaintenanceCost: Number(totalStats.total_maintenance_cost) || 0,
       totalMaintenanceOperations: Number(totalStats.total_maintenance_ops) || 0,
+      totalFeesCost: Number(totalStats.total_fees_cost) || 0,
       thisMonthFuelCost: Number(totalStats.this_month_fuel_cost) || 0,
       thisMonthFuelLiters: Number(totalStats.this_month_fuel_liters) || 0,
       thisMonthMaintenanceCost: Number(totalStats.this_month_maintenance_cost) || 0,
