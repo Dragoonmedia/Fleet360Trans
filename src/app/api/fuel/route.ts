@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { fuelRecords, vehicles } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { verifyToken, revalidateSession } from "@/lib/auth";
-import { tenantOf } from "@/lib/guard";
+import { tenantOf, requireWrite } from "@/lib/guard";
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +24,8 @@ export async function POST(req: NextRequest) {
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "fuel");
+    if (denied) return denied;
 
     const body = await req.json().catch(() => ({}));
     let plateNumber = String(body.plateNumber || "").trim();

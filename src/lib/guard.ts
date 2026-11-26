@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
+import { NextResponse } from "next/server";
 import type { JWTPayload } from "@/lib/auth";
+import { canWrite, type Module } from "@/lib/permissions";
+
+/** Returns a 403 response if the user may not write to this module, otherwise null. */
+export function requireWrite(user: JWTPayload, module: Module) {
+  return canWrite(user, module)
+    ? null
+    : NextResponse.json({ error: "ليس لديك صلاحية لهذا الإجراء" }, { status: 403 });
+}
 
 // تسلسل الأدوار (نفس القيم المستخدمة في باقي النظام)
 export const ROLE_POWER: Record<string, number> = {

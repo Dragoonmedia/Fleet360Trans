@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useApp } from "@/context/AppContext";
+import { canWrite as canWriteModule } from "@/lib/permissions";
 import DataTable from "@/components/ui/DataTable";
 import Modal from "@/components/ui/Modal";
 import FilterBar, { FilterSelect } from "@/components/ui/FilterBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
-import ImportExcelButton from "@/components/ImportExcelButton";
 import { 
   Droplet, 
   Plus, 
@@ -65,6 +65,7 @@ const normalizeOilRecord = (r: any) => {
 export default function OilChangesPage() {
   const { user } = useApp();
   const [data, setData] = useState<any[]>([]);
+  const [tires, setTires] = useState<any[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"oil" | "tires">("oil");
@@ -78,15 +79,17 @@ export default function OilChangesPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const canWrite = user?.role === "owner" || user?.role === "super_admin" || user?.role === "admin" || user?.permissions?.includes("oil:write");
+  const canWrite = canWriteModule(user, "oil");
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [resOil, resVeh] = await Promise.all([
+      const [resOil, resVeh, resTires] = await Promise.all([
         fetch("/api/oil-changes").then(r => r.ok ? r.json() : []).catch(() => []),
-        fetch("/api/vehicles").then(r => r.ok ? r.json() : []).catch(() => [])
+        fetch("/api/vehicles").then(r => r.ok ? r.json() : []).catch(() => []),
+        fetch("/api/tires").then(r => r.ok ? r.json() : []).catch(() => [])
       ]);
+      setTires(Array.isArray(resTires) ? resTires : []);
 
       const raw = Array.isArray(resOil) ? resOil : (resOil?.data || []);
       setData(raw.map(normalizeOilRecord));
@@ -101,6 +104,13 @@ export default function OilChangesPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // فتح تبويب الكاوتش مباشرة من رابط داتا الأسطول (?tab=tires)
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "tires") {
+      setActiveTab("tires");
+    }
+  }, []);
 
   // حفظ التعديلات في قاعدة البيانات بأمان
   const handleSave = async (e: React.FormEvent) => {
@@ -131,20 +141,16 @@ export default function OilChangesPage() {
         change_date: editing.changeDate
       };
 
-      // إرسال التحديث لمسار الـ API المباشر
-      let res = await fetch(`/api/oil-changes/${editing.id}`, {
-        method: "PUT",
+      if (!editing.id && !editing.plateNumber) {
+        alert("اختر السيارة أولاً");
+        return;
+      }
+      // سجل موجود -> تعديل، سجل جديد -> إضافة
+      const res = await fetch(editing.id ? `/api/oil-changes/${editing.id}` : "/api/oil-changes", {
+        method: editing.id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-
-      if (!res.ok) {
-        res = await fetch(`/api/oil-changes`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-      }
 
       if (res.ok) {
         setModalOpen(false);
@@ -164,7 +170,8 @@ export default function OilChangesPage() {
       !search || 
       String(r.vehicleDisplay).toLowerCase().includes(search.toLowerCase()) ||
       String(r.oilType).toLowerCase().includes(search.toLowerCase()) ||
-      String(r.brand).toLowerCase().includes(search.toLowerCase());
+      String(r.brand).toLowerCase().includes(search.toLowerCase()) ||
+      String(r.sapNumber || "").toLowerCase().includes(search.toLowerCase());
 
     const fMatch = 
       filterChoice === "الكل" || 
@@ -185,13 +192,38 @@ export default function OilChangesPage() {
   const totalCost = data.reduce((s, r) => s + safeNum(r.cost), 0);
   const oilCount = data.length;
 
+  const filteredTires = tires.filter(t => {
+    const q = search.toLowerCase();
+    const sMatch =
+      !search ||
+      String(t.plateNumber || "").toLowerCase().includes(q) ||
+      String(t.notes || "").toLowerCase().includes(q) ||
+      String(t.sapNumber || "").toLowerCase().includes(q);
+    let dateMatch = true;
+    if ((dateFrom || dateTo) && t.installDate) {
+      const rowTime = new Date(t.installDate).getTime();
+      const start = dateFrom ? new Date(dateFrom).getTime() : 0;
+      const end = dateTo ? new Date(dateTo).getTime() + 86399999 : Infinity;
+      dateMatch = rowTime >= start && rowTime <= end;
+    }
+    return sMatch && dateMatch;
+  });
+  const tiresCost = tires.reduce((s, t) => s + safeNum(t.cost), 0);
+
+  const sapBadge = (sap: any) =>
+    sap ? (
+      <span className="font-mono text-xs font-black text-blue-900 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">{sap}</span>
+    ) : (
+      <span className="text-gray-400 text-xs">-</span>
+    );
+
   return (
     <div className="w-full space-y-6" dir="rtl">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white p-5 rounded-2xl shadow-sm flex items-center justify-between">
           <div>
             <p className="text-blue-200 text-xs font-bold mb-1">إجمالي تكاليف الزيوت والكاوتش</p>
-            <h3 className="text-2xl font-black">{totalCost > 0 ? totalCost.toLocaleString() : "15,714"} <span className="text-sm font-normal">ج.م</span></h3>
+            <h3 className="text-2xl font-black">{(totalCost + tiresCost).toLocaleString()} <span className="text-sm font-normal">ج.م</span></h3>
           </div>
           <div className="p-3 bg-white/10 rounded-xl"><DollarSign size={24} /></div>
         </div>
@@ -208,8 +240,8 @@ export default function OilChangesPage() {
         <div className="bg-gradient-to-r from-blue-950 to-blue-900 text-white p-5 rounded-2xl shadow-sm flex items-center justify-between">
           <div>
             <p className="text-gray-300 text-xs font-bold mb-1">سجلات الإطارات (الكاوتش)</p>
-            <h3 className="text-2xl font-black">0</h3>
-            <span className="text-xs text-gray-300 opacity-80 mt-1 block">التكلفة: 0 ج.م</span>
+            <h3 className="text-2xl font-black">{tires.length}</h3>
+            <span className="text-xs text-gray-300 opacity-80 mt-1 block">التكلفة: {tiresCost.toLocaleString()} ج.م</span>
           </div>
           <div className="p-3 bg-white/10 rounded-xl"><Disc size={24} /></div>
         </div>
@@ -220,11 +252,11 @@ export default function OilChangesPage() {
           <div className="p-3 bg-teal-50 text-teal-600 rounded-xl"><Droplet size={24}/></div>
           <div>
             <h1 className="text-xl font-black text-gray-900 dark:text-white">إدارة الزيوت والفلاتر</h1>
-            <p className="text-xs text-gray-500 mt-0.5">عرض {filteredData.length} سجل مطابق</p>
+            <p className="text-xs text-gray-500 mt-0.5">عرض {activeTab === "oil" ? filteredData.length : filteredTires.length} سجل مطابق</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <ImportExcelButton templateColumns={["رقم اللوحة", "نوع الزيت", "العداد", "التكلفة"]} templateFileName="الزيوت" mapRow={() => null} onImport={async () => ({ok:0, failed:0})} buttonText="استيراد وتحديث الشيت" />
+          {canWrite && activeTab === "oil" && (
           <button 
             onClick={() => { 
               setEditing({ 
@@ -239,6 +271,7 @@ export default function OilChangesPage() {
           >
             <Plus size={18}/> إضافة غيار زيت
           </button>
+          )}
         </div>
       </div>
 
@@ -247,7 +280,7 @@ export default function OilChangesPage() {
           الزيوت والفلاتر ({oilCount})
         </button>
         <button onClick={() => setActiveTab("tires")} className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer ${activeTab === "tires" ? "bg-teal-600 text-white shadow-md" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"}`}>
-          الكاوتش والإطارات (0)
+          الكاوتش والإطارات ({tires.length})
         </button>
       </div>
 
@@ -276,8 +309,30 @@ export default function OilChangesPage() {
       </FilterBar>
 
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-200 dark:border-gray-800 overflow-hidden">
+        {activeTab === "tires" ? (
+          <DataTable
+            columns={[
+              { key: "sapNumber", header: "رقم SAP", render: (t: any) => sapBadge(t.sapNumber) },
+              { key: "plateNumber", header: "رقم اللوحة", render: (t: any) => <span className="font-bold text-blue-900 dark:text-blue-300">{t.plateNumber}</span> },
+              { key: "notes", header: "البيان", render: (t: any) => <span className="text-xs text-gray-700 dark:text-gray-300">{String(t.notes || "-").split(" — ")[0]}</span> },
+              {
+                key: "installDate",
+                header: "التاريخ",
+                render: (t: any) => {
+                  if (!t.installDate) return "-";
+                  const d = new Date(t.installDate);
+                  return isNaN(d.getTime()) ? t.installDate : d.toLocaleDateString("en-GB");
+                }
+              },
+              { key: "cost", header: "التكلفة", render: (t: any) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{safeNum(t.cost).toLocaleString()} ج.م</span> }
+            ]}
+            data={filteredTires}
+            loading={loading}
+          />
+        ) : (
         <DataTable 
           columns={[
+            { key: "sapNumber", header: "رقم SAP", render: (r: any) => sapBadge(r.sapNumber || r.sap_number) },
             { 
               key: "vehicleDisplay", 
               header: "رقم اللوحة", 
@@ -334,9 +389,14 @@ export default function OilChangesPage() {
               ) 
             },
             {
+              key: "cost",
+              header: "التكلفة",
+              render: (r: any) => <span className="font-bold text-emerald-600 dark:text-emerald-400">{safeNum(r.cost).toLocaleString()} ج.م</span>
+            },
+            {
               key: "actions",
               header: "إجراء",
-              render: (r: any) => (
+              render: (r: any) => !canWrite ? <span className="text-gray-400 text-xs">-</span> : (
                 <button 
                   onClick={() => { setEditing(normalizeOilRecord(r)); setModalOpen(true); }}
                   className="flex items-center gap-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-600 hover:text-white dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-600 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 transition-colors cursor-pointer"
@@ -350,12 +410,28 @@ export default function OilChangesPage() {
           data={filteredData} 
           loading={loading} 
         />
+        )}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="تعديل بيانات غيار الزيت والعداد" size="lg">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing.id ? "تعديل بيانات غيار الزيت والعداد" : "إضافة غيار زيت"} size="lg">
         <form onSubmit={handleSave} className="grid grid-cols-2 gap-4">
           <Field label="السيارة / اللوحة">
-            <input disabled className={`${inputClass} bg-gray-100 dark:bg-gray-900 font-bold text-blue-900 dark:text-blue-300`} value={editing.vehicleDisplay || editing.plateNumber || ""} />
+            {editing.id ? (
+              <input disabled className={`${inputClass} bg-gray-100 dark:bg-gray-900 font-bold text-blue-900 dark:text-blue-300`} value={editing.vehicleDisplay || editing.plateNumber || ""} />
+            ) : (
+              <select
+                className={inputClass}
+                value={editing.plateNumber || ""}
+                onChange={e => setEditing({ ...editing, plateNumber: e.target.value, plate_number: e.target.value })}
+                required
+              >
+                <option value="">-- اختر السيارة --</option>
+                {vehicles.map((v: any) => {
+                  const p = v.plateNumber || v.plate_number;
+                  return <option key={v.id} value={p}>{p}{v.model ? ` - ${v.model}` : ""}</option>;
+                })}
+              </select>
+            )}
           </Field>
 
           <Field label="نوع ومواصفة الزيت">

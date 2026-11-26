@@ -7,6 +7,8 @@ import DataTable from "@/components/ui/DataTable";
 import FilterBar from "@/components/ui/FilterBar";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ImportExcelButton from "@/components/ImportExcelButton";
+import { isSapSheet, normalizeSapRows } from "@/lib/fleetSheet";
+import { canWrite as canWriteModule } from "@/lib/permissions";
 import {
   Truck,
   Wrench,
@@ -28,7 +30,7 @@ interface FleetRecord {
   sapNumber: string;
   plateNumber: string;
   date: string;
-  section: "صيانة" | "زيوت" | "كاوتش" | "وقود" | "فحص";
+  section: "صيانة" | "زيوت" | "كاوتش" | "وقود" | "فحص" | "رسوم وتراخيص" | "غسيل";
   sectionKey: "work-orders" | "oil" | "tires" | "fuel" | "inspection";
   title: string;
   description: string;
@@ -207,14 +209,10 @@ export default function FleetDataPage() {
   const vehicleMenuRef = useRef<HTMLDivElement>(null);
 
   const [activeSection, setActiveSection] = useState<
-    "all" | "work-orders" | "oil" | "tires" | "fuel" | "inspection"
+    "all" | "work-orders" | "oil" | "tires" | "fuel" | "inspection" | "fees" | "wash"
   >("all");
 
-  const canWrite =
-    user?.role === "owner" ||
-    user?.role === "super_admin" ||
-    user?.role === "admin" ||
-    user?.permissions?.includes("fleet:write");
+  const canWrite = canWriteModule(user, "fleet_import");
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -255,6 +253,9 @@ export default function FleetDataPage() {
             const rawCost = safeNum(w.cost ?? w.total_cost ?? w.totalCost ?? w.amount);
             const rawDate = w.startDate || w.start_date || w.date || (w.createdAt ? w.createdAt.slice(0, 10) : "-");
             const pNum = w.plateNumber || w.plate_number || "";
+            const mt = String(w.maintenanceType || w.maintenance_type || "");
+            const woSection: FleetRecord["section"] =
+              mt === "رسوم وتراخيص" ? "رسوم وتراخيص" : mt === "غسيل" ? "غسيل" : "صيانة";
 
             list.push({
               id: `wo-${w.id}`,
@@ -262,7 +263,7 @@ export default function FleetDataPage() {
               sapNumber: rawSap,
               plateNumber: pNum,
               date: rawDate,
-              section: "صيانة",
+              section: woSection,
               sectionKey: "work-orders",
               title: w.maintenanceType || w.maintenance_type || "أمر صيانة",
               description: w.description || w.workshop || "صيانة مركبة",
@@ -293,7 +294,7 @@ export default function FleetDataPage() {
               section: "زيوت",
               sectionKey: "oil",
               title: o.oilType || o.oil_type || "غيار زيت",
-              description: `${o.oilBrand || o.brand || ""} - غيار عند ${safeNum(o.currentKm ?? o.current_km)} كم`,
+              description: o.notes || `${o.oilBrand || o.brand || ""} - غيار عند ${safeNum(o.currentKm ?? o.current_km)} كم`,
               cost: rawCost,
               routeUrl: `/dashboard/oil-changes`
             });
@@ -319,9 +320,9 @@ export default function FleetDataPage() {
               section: "كاوتش",
               sectionKey: "tires",
               title: `كاوتش ${t.brand || ""}`,
-              description: `مقاس: ${t.size || "-"} - عدد ${t.tireCount || 4} فرد كاوتش`,
+              description: t.notes || `مقاس: ${t.size || "-"}`,
               cost: rawCost,
-              routeUrl: `/dashboard/oil-changes`
+              routeUrl: `/dashboard/oil-changes?tab=tires`
             });
           });
       }
@@ -412,7 +413,9 @@ export default function FleetDataPage() {
 
       const matchesSection =
         activeSection === "all" ||
-        (activeSection === "work-orders" && row.sectionKey === "work-orders") ||
+        (activeSection === "work-orders" && row.sectionKey === "work-orders" && row.section === "صيانة") ||
+        (activeSection === "fees" && row.section === "رسوم وتراخيص") ||
+        (activeSection === "wash" && row.section === "غسيل") ||
         (activeSection === "oil" && row.sectionKey === "oil") ||
         (activeSection === "tires" && row.sectionKey === "tires") ||
         (activeSection === "fuel" && row.sectionKey === "fuel") ||
@@ -429,6 +432,45 @@ export default function FleetDataPage() {
 
   const handleImport = async (importedRows: any[]) => {
     if (!importedRows || importedRows.length === 0) return;
+
+    // شيت SAP الشهري (Equipment / Order / Description ...) يتم استيراده على السيرفر دفعة واحدة
+    if (isSapSheet(importedRows)) {
+      const rows = normalizeSapRows(importedRows);
+      if (rows.length === 0) {
+        alert("لم يتم العثور على صفوف صالحة في شيت SAP.");
+        return;
+      }
+      try {
+        const res = await fetch("/api/fleet-import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data.error || "فشل استيراد الشيت");
+          return;
+        }
+        const lines = Object.entries(data.byCategory || {})
+          .filter(([, c]: any) => c.inserted || c.updated)
+          .map(([k, c]: any) => `- ${k}: ${c.inserted} جديد، ${c.updated} محدث (${Number(c.cost).toLocaleString()} ج.م)`);
+        let msg = `تم استيراد شيت SAP:\n${lines.join("\n")}\n\nالإجمالي: ${data.inserted} فاتورة جديدة، ${data.updated} فاتورة محدثة.`;
+        if (data.linkedVehicles?.length) {
+          msg += `\n\nتم ربط ${data.linkedVehicles.length} سيارة برقم SAP الخاص بها:\n` +
+            data.linkedVehicles.map((l: any) => `- ${l.plate} ← ${l.equipment}`).join("\n");
+        }
+        if (data.unmatched?.length) {
+          msg += `\n\nفواتير لم تُستورد لأن السيارة غير موجودة في قائمة السيارات:\n` +
+            data.unmatched.map((u: any) => `- ${u.equipment} (${u.equipmentDesc}): ${u.count} فاتورة`).join("\n") +
+            `\nأضف هذه السيارات برقم SAP الخاص بها ثم أعد استيراد الشيت.`;
+        }
+        alert(msg);
+        loadFleetData();
+      } catch {
+        alert("خطأ في الاتصال بالخادم أثناء الاستيراد");
+      }
+      return;
+    }
 
     try {
       let updatedCount = 0;
@@ -679,6 +721,8 @@ export default function FleetDataPage() {
         if (r.section === "كاوتش") badgeColor = "bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-300";
         if (r.section === "وقود") badgeColor = "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300";
         if (r.section === "فحص") badgeColor = "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300";
+        if (r.section === "رسوم وتراخيص") badgeColor = "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300";
+        if (r.section === "غسيل") badgeColor = "bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300";
 
         return (
           <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${badgeColor}`}>
@@ -894,7 +938,31 @@ export default function FleetDataPage() {
           }`}
         >
           <Wrench size={14} />
-          <span>أوامر الصيانة ({allRecords.filter((r) => r.sectionKey === "work-orders").length})</span>
+          <span>أوامر الصيانة ({allRecords.filter((r) => r.sectionKey === "work-orders" && r.section === "صيانة").length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection("fees")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSection === "fees"
+              ? "bg-rose-700 text-white shadow-md"
+              : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+          }`}
+        >
+          <ClipboardCheck size={14} />
+          <span>رسوم وتراخيص ({allRecords.filter((r) => r.section === "رسوم وتراخيص").length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSection("wash")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+            activeSection === "wash"
+              ? "bg-sky-700 text-white shadow-md"
+              : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+          }`}
+        >
+          <Droplets size={14} />
+          <span>غسيل ({allRecords.filter((r) => r.section === "غسيل").length})</span>
         </button>
 
         <button

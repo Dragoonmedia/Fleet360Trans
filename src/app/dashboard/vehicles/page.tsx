@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useApp } from "@/context/AppContext";
+import { canWrite as canWriteModule } from "@/lib/permissions";
 import DataTable from "@/components/ui/DataTable";
 import ExportExcelButton from "@/components/ExportExcelButton";
 import ImportExcelButton from "@/components/ImportExcelButton";
@@ -212,11 +213,7 @@ export default function VehiclesManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const canWrite =
-    user?.role === "owner" ||
-    user?.role === "super_admin" ||
-    user?.role === "admin" ||
-    user?.permissions?.includes("fleet:write");
+  const canWrite = canWriteModule(user, "vehicles");
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

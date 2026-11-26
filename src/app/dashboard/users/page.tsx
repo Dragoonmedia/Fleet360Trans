@@ -12,6 +12,7 @@ const ALL_PERMISSIONS = [
   { key: "vehicles:write", label: "إدارة السيارات" }, { key: "fuel:write", label: "إدارة الوقود" },
   { key: "maintenance:write", label: "إدارة أوامر الشغل" }, { key: "oil-changes:write", label: "إدارة الزيوت" },
   { key: "spare-parts:write", label: "إدارة المخزون" }, { key: "inspections:write", label: "إدارة الفحص" },
+  { key: "fleet:write", label: "استيراد داتا الأسطول (كل الأقسام)" },
 ];
 
 const emptyUser = { username: "", name: "", role: "user", password: "", permissions: "[]", createNewBranch: false };

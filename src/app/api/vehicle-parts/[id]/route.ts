@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { vehicleParts } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { verifyToken, revalidateSession } from "@/lib/auth";
-import { ROLE_POWER, powerOf, isGlobalUser, tenantOf } from "@/lib/guard";
+import { ROLE_POWER, powerOf, isGlobalUser, tenantOf, requireWrite } from "@/lib/guard";
 
 function auth(req: NextRequest) {
   const token = req.cookies.get("fleet360_token")?.value;
@@ -14,6 +14,8 @@ function auth(req: NextRequest) {
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await revalidateSession(auth(req));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "vehicles");
+    if (denied) return denied;
   const { id } = await params;
   const partId = parseInt(id);
   if (!partId) return NextResponse.json({ error: "معرف غير صالح" }, { status: 400 });
@@ -39,6 +41,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await revalidateSession(auth(req));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "vehicles");
+    if (denied) return denied;
   // كان الشرط user.role !== "admin" فبيمنع owner و super_admin. دلوقتي: admin فما فوق.
   if (powerOf(user.role) < ROLE_POWER.admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;

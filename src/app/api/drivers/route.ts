@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken, revalidateSession } from "@/lib/auth";
-import { tenantClause } from "@/lib/guard";
+import { tenantClause, requireWrite } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     } else {
       result = await db.execute(sql`
         SELECT * FROM drivers 
-        WHERE (tenant_id = ${tenantId} OR tenant_id IS NULL)
+        WHERE ${tenantClause(user)}
           AND (is_deleted = 0 OR is_deleted IS NULL)
         ORDER BY id DESC
       `);
@@ -54,6 +54,8 @@ export async function POST(req: NextRequest) {
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "drivers");
+    if (denied) return denied;
 
     const b = await req.json().catch(() => ({}));
     const name = String(b.name || "").trim();
@@ -89,6 +91,8 @@ export async function PUT(req: NextRequest) {
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "drivers");
+    if (denied) return denied;
 
     const b = await req.json().catch(() => ({}));
     const id = Number(b.id);
@@ -128,6 +132,8 @@ export async function DELETE(req: NextRequest) {
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "drivers");
+    if (denied) return denied;
 
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");

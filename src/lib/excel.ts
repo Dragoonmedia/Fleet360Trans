@@ -21,7 +21,9 @@ export const exportToExcel = async (data: any[], fileName: string) => {
     width: Math.max(col.length + 10, 20),
   }));
 
-  worksheet.addRows(data);
+  // Neutralise spreadsheet formulas in text cells (CSV/Excel formula injection)
+  const safe = (v: any) => (typeof v === "string" && /^([=+@\t\r]|-(?![\d\s.]|$))/.test(v) ? "'" + v : v);
+  worksheet.addRows(data.map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, safe(v)]))));
 
   // التنسيق المؤسسي للأعمدة والهيدر
   worksheet.columns.forEach((column, colIndex) => {

@@ -2,136 +2,89 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken, revalidateSession } from "@/lib/auth";
-import { tenantClause } from "@/lib/guard";
+import { tenantClause, requireWrite } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 function auth(req: NextRequest) {
   try {
     const token = req.cookies.get("fleet360_token")?.value;
-    if (!token) return null;
-    return verifyToken(token);
+    return token ? verifyToken(token) : null;
   } catch {
     return null;
   }
 }
 
-// ── GET: جلب سجل إطار واحد ──
-export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
+type Ctx = { params: Promise<{ id: string }> | { id: string } };
+
+async function idOf(ctx: Ctx) {
+  const p = await Promise.resolve(ctx.params);
+  const id = Number(p?.id);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+export async function GET(req: NextRequest, ctx: Ctx) {
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const id = await idOf(ctx);
+    if (!id) return NextResponse.json({ error: "معرّف غير صالح" }, { status: 400 });
 
-    const params = await Promise.resolve(context.params);
-    const id = Number(params?.id);
-
-    if (!id || isNaN(id)) {
-      return NextResponse.json({ error: "معرّف غير صالح" }, { status: 400 });
-    }
-
-    const result = await db.execute(sql`SELECT * FROM tires WHERE id = ${id}`);
-    const rows = (result as any).rows || result || [];
-
-    if (!rows[0]) {
-      return NextResponse.json({ error: "السجل غير موجود" }, { status: 404 });
-    }
-
+    const rows = ((await db.execute(sql`
+      SELECT * FROM tires WHERE id = ${id} AND COALESCE(is_deleted, 0) = 0 AND ${tenantClause(user)}
+    `)) as any).rows || [];
+    if (!rows[0]) return NextResponse.json({ error: "السجل غير موجود" }, { status: 404 });
     return NextResponse.json(rows[0]);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "حدث خطأ أثناء جلب البيانات" }, { status: 500 });
   }
 }
 
-// ── DELETE: حذف الإطار المحدد بالمعرف الديناميكي ──
-export async function DELETE(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
+export async function PUT(req: NextRequest, ctx: Ctx) {
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "tires");
+    if (denied) return denied;
+    const id = await idOf(ctx);
+    if (!id) return NextResponse.json({ error: "معرّف غير صالح" }, { status: 400 });
 
-    const params = await Promise.resolve(context.params);
-    const id = Number(params?.id);
+    const b = await req.json().catch(() => ({}));
+    const installDate = /^\d{4}-\d{2}-\d{2}$/.test(String(b.installDate || "")) ? String(b.installDate) : null;
 
-    if (!id || isNaN(id)) {
-      return NextResponse.json({ error: "معرّف غير صالح" }, { status: 400 });
-    }
-
-    const isSuperAdmin = user.role === "super_admin";
-    const tenantId = user.tenantId || "master";
-
-    let result;
-    if (isSuperAdmin) {
-      result = await db.execute(sql`DELETE FROM tires WHERE id = ${id} RETURNING *`);
-    } else {
-      result = await db.execute(sql`
-        DELETE FROM tires 
-        WHERE id = ${id} AND (tenant_id = ${tenantId} OR tenant_id IS NULL)
-        RETURNING *
-      `);
-    }
-
-    const rows = (result as any).rows || result || [];
-    if (!rows || rows.length === 0) {
-      return NextResponse.json({ error: "العنصر غير موجود أو تم حذفه مسبقاً" }, { status: 404 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "تم حذف أمر الكاوتش بنجاح",
-      deletedId: id
-    });
-  } catch (error: any) {
-    console.error("DELETE Tire by ID Error:", error);
-    return NextResponse.json({ error: "فشل الحذف" }, { status: 500 });
+    const rows = ((await db.execute(sql`
+      UPDATE tires SET
+        tire_brand = ${String(b.brand || "")},
+        tire_size = ${String(b.size || "")},
+        cost = ${Number(b.cost) || 0},
+        next_change_km = ${Number(b.nextChangeKm || b.next_change_km) || 0},
+        install_date = COALESCE(${installDate}::date, install_date),
+        notes = ${String(b.notes || "")}
+      WHERE id = ${id} AND COALESCE(is_deleted, 0) = 0 AND ${tenantClause(user)}
+      RETURNING id
+    `)) as any).rows || [];
+    if (!rows[0]) return NextResponse.json({ error: "السجل غير موجود" }, { status: 404 });
+    return NextResponse.json({ success: true, id });
+  } catch {
+    return NextResponse.json({ error: "فشل التعديل" }, { status: 500 });
   }
 }
 
-// ── PUT: تعديل بيانات الإطار ──
-export async function PUT(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> | { id: string } }
-) {
+export async function DELETE(req: NextRequest, ctx: Ctx) {
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "tires");
+    if (denied) return denied;
+    const id = await idOf(ctx);
+    if (!id) return NextResponse.json({ error: "معرّف غير صالح" }, { status: 400 });
 
-    const params = await Promise.resolve(context.params);
-    const id = Number(params?.id);
-
-    if (!id || isNaN(id)) {
-      return NextResponse.json({ error: "معرّف غير صالح" }, { status: 400 });
-    }
-
-    const b = await req.json().catch(() => ({}));
-    const brand = String(b.brand || "");
-    const size = String(b.size || "");
-    const cost = Number(b.cost) || 0;
-    const nextChangeKm = Number(b.nextChangeKm || b.next_change_km) || 0;
-    const notes = String(b.notes || "");
-
-    const result = await db.execute(sql`
-      UPDATE tires SET
-        brand = ${brand},
-        size = ${size},
-        cost = ${cost},
-        next_change_km = ${nextChangeKm},
-        notes = ${notes}
-      WHERE id = ${id} AND ${tenantClause(user)}
-      RETURNING *
-    `);
-
-    const rows = (result as any).rows || result || [];
-    return NextResponse.json({
-      success: true,
-      message: "تم تعديل السجل بنجاح",
-      data: rows[0]
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: "فشل التعديل" }, { status: 500 });
+    const rows = ((await db.execute(sql`
+      UPDATE tires SET is_deleted = 1 WHERE id = ${id} AND ${tenantClause(user)} RETURNING id
+    `)) as any).rows || [];
+    if (!rows[0]) return NextResponse.json({ error: "العنصر غير موجود" }, { status: 404 });
+    return NextResponse.json({ success: true, deletedId: id });
+  } catch {
+    return NextResponse.json({ error: "فشل الحذف" }, { status: 500 });
   }
 }

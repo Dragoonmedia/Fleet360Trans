@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useApp } from "@/context/AppContext";
+import { canWrite as canWriteModule } from "@/lib/permissions";
 import DataTable from "@/components/ui/DataTable";
 import Modal from "@/components/ui/Modal";
 import FilterBar, { FilterSelect } from "@/components/ui/FilterBar";
@@ -129,7 +130,7 @@ export default function FuelPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canWrite = user?.role === "owner" || user?.role === "super_admin" || user?.role === "admin" || user?.permissions?.includes("fuel:write");
+  const canWrite = canWriteModule(user, "fuel");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -164,7 +165,12 @@ export default function FuelPage() {
   const filteredData = data.filter(r => {
     const plate = (r.plateNumber || r.plate_number || "").toLowerCase();
     const driver = (r.driverName || r.driver_name || "").toLowerCase();
-    const sMatch = plate.includes(search.toLowerCase()) || driver.includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const sMatch =
+      plate.includes(q) ||
+      driver.includes(q) ||
+      String(r.sapNumber || r.sap_number || "").toLowerCase().includes(q) ||
+      String(r.notes || "").toLowerCase().includes(q);
     const dMatch = driverFilter === "الكل" || (r.driverName || r.driver_name) === driverFilter;
     const stMatch = stationFilter === "الكل" || (r.station || "") === stationFilter;
     let dateMatch = true;
@@ -359,9 +365,30 @@ export default function FuelPage() {
                 </span>
               ) 
             },
-            { 
-              key: "liters", 
-              header: "اللترات", 
+            {
+              key: "sapNumber",
+              header: "رقم SAP",
+              render: (r: any) => {
+                const sap = r.sapNumber || r.sap_number;
+                return sap ? (
+                  <span className="font-mono text-xs font-black text-blue-900 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">{sap}</span>
+                ) : (
+                  <span className="text-gray-400 text-xs">-</span>
+                );
+              }
+            },
+            {
+              key: "notes",
+              header: "البيان",
+              render: (r: any) => (
+                <span className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2 max-w-[260px] inline-block" title={r.notes || ""}>
+                  {String(r.notes || "-").split(" — ")[0]}
+                </span>
+              )
+            },
+            {
+              key: "liters",
+              header: "اللترات",
               render: (r: any) => (
                 <span className="font-bold text-sky-600 dark:text-sky-400">
                   {safeNum(r.liters ?? r.litres)} L

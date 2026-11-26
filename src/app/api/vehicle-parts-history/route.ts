@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { vehiclePartsHistory } from "@/db/schema";
 import { eq, and, gte, lte, ilike, sql } from "drizzle-orm";
 import { verifyToken, revalidateSession } from "@/lib/auth";
-import { isGlobalUser, tenantOf } from "@/lib/guard";
+import { isGlobalUser, tenantOf, requireWrite } from "@/lib/guard";
 
 function auth(req: NextRequest) {
   const token = req.cookies.get("fleet360_token")?.value;
@@ -40,6 +40,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await revalidateSession(auth(req));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "vehicles");
+    if (denied) return denied;
   const b = await req.json().catch(() => ({}));
   // 🔒 قائمة حقول مسموحة + الـ tenant بيتحدد من التوكن مش من الـ body
   const [row] = await db.insert(vehiclePartsHistory).values({

@@ -17,6 +17,7 @@ export const vehicles = pgTable("vehicles", {
   status: text("status").default("active"), currentKm: integer("current_km").default(0),
   licenseExpiry: date("license_expiry"), insuranceExpiry: date("insurance_expiry"),
   fuelType: text("fuel_type").default("بنزين"), color: text("color"), notes: text("notes"),
+  sapNumber: text("sap_number"), chassisNumber: text("chassis_number"),
   isDeleted: integer("is_deleted").default(0), deletedBy: text("deleted_by"), deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -33,6 +34,7 @@ export const fuelRecords = pgTable("fuel_records", {
   vehicleId: integer("vehicle_id"), plateNumber: text("plate_number"), driverName: text("driver_name"),
   liters: decimal("liters"), costPerLiter: decimal("cost_per_liter"), totalCost: decimal("total_cost"),
   odometer: integer("odometer"), station: text("station"), fuelDate: date("fuel_date"), notes: text("notes"),
+  sapNumber: text("sap_number"),
   isDeleted: integer("is_deleted").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -47,6 +49,7 @@ export const workOrders = pgTable("work_orders", {
   lifespanKm: decimal("lifespan_km"), lastMaintenanceDate: date("last_maintenance_date"),
   nextMaintenanceDate: date("next_maintenance_date"), invoiceUrl: text("invoice_url"),
   notes: text("notes"), isDeleted: integer("is_deleted").default(0),
+  sapNumber: text("sap_number"), operationType: text("operation_type"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -59,6 +62,7 @@ export const oilChanges = pgTable("oil_changes", {
   fuelFilterChanged: integer("fuel_filter_changed"), nextChangeKm: integer("next_change_km"),
   nextChangeDate: date("next_change_date"), alertKmBefore: integer("alert_km_before"),
   alertDaysBefore: integer("alert_days_before"), cost: decimal("cost"), technician: text("technician"),
+  sapNumber: text("sap_number"),
   notes: text("notes"), isDeleted: integer("is_deleted").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -79,7 +83,7 @@ export const tires = pgTable("tires", {
   tireSize: text("tire_size"), tireBrand: text("tire_brand"), installDate: date("install_date"),
   kmAtInstall: decimal("km_at_install"), lifespanKm: decimal("lifespan_km"),
   nextChangeKm: decimal("next_change_km"), nextChangeDate: date("next_change_date"),
-  cost: decimal("cost"), notes: text("notes"),
+  cost: decimal("cost"), notes: text("notes"), sapNumber: text("sap_number"),
   isDeleted: integer("is_deleted").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });

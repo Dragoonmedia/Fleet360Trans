@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { verifyToken, revalidateSession } from "@/lib/auth";
-import { tenantClause } from "@/lib/guard";
+import { tenantClause, requireWrite } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "work_orders");
+    if (denied) return denied;
 
     const body = await req.json();
 
@@ -102,6 +104,8 @@ export async function PUT(req: NextRequest) {
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "work_orders");
+    if (denied) return denied;
 
     const body = await req.json();
     const id = Number(body.id);

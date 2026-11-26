@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useApp } from "@/context/AppContext";
+import { canWrite as canWriteModule } from "@/lib/permissions";
 import DataTable from "@/components/ui/DataTable";
 import Modal from "@/components/ui/Modal";
 import FilterBar, { FilterSelect } from "@/components/ui/FilterBar";
@@ -140,7 +141,7 @@ export default function WorkOrdersPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const canWrite = user?.role === "owner" || user?.role === "super_admin" || user?.role === "admin" || user?.permissions?.includes("work_orders:write");
+  const canWrite = canWriteModule(user, "work_orders");
 
   const loadData = useCallback(async () => {
     setLoading(true);

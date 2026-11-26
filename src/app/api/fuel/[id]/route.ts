@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { fuelRecords, vehicles } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { verifyToken, revalidateSession } from "@/lib/auth";
-import { tenantClause, tenantOf, isGlobalUser } from "@/lib/guard";
+import { tenantClause, tenantOf, isGlobalUser, requireWrite } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +29,8 @@ export async function PUT(
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "fuel");
+    if (denied) return denied;
 
     const { id: idStr } = await ctx.params;
     const id = Number(idStr);
@@ -87,6 +89,8 @@ export async function DELETE(
   try {
     const user = await revalidateSession(auth(req));
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const denied = requireWrite(user, "fuel");
+    if (denied) return denied;
     const { id } = await ctx.params;
     await db.delete(fuelRecords).where(and(eq(fuelRecords.id, Number(id)), isGlobalUser(user) ? undefined : sql`COALESCE(${fuelRecords.tenantId}, 'master') = ${tenantOf(user)}`));
     return NextResponse.json({ success: true });
